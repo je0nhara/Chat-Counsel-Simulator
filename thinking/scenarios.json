@@ -1,0 +1,39 @@
+{
+  "scenarios": [
+    {
+      "id": "payment_cancel",
+      "name": "결제 취소 요청",
+      "description": "고객이 최근 결제를 취소하고 환불을 원함",
+      "context": "지난주 온라인 쇼핑몰에서 의류를 구입했는데 마음에 들지 않아 환불을 원하고 있습니다. 배송비도 아깝다고 생각하고 있습니다.",
+      "difficulty": "easy"
+    },
+    {
+      "id": "product_defect",
+      "name": "제품 불량 신고",
+      "description": "받은 상품이 불량이라고 주장하는 고객",
+      "context": "받은 상품의 포장이 뜯어져 있었고, 제품에 흠집이 있습니다. 즉시 교환이나 환불을 요구하고 있습니다.",
+      "difficulty": "medium"
+    },
+    {
+      "id": "delivery_delay",
+      "name": "배송 지연 불만",
+      "description": "약속된 배송 기한을 넘긴 상품에 대한 불만",
+      "context": "긴급하게 필요한 물품이었는데 약속 날짜에 도착하지 않았습니다. 약속했던 배송일로부터 3일이 지났습니다.",
+      "difficulty": "medium"
+    },
+    {
+      "id": "duplicate_charge",
+      "name": "중복 결제 문제",
+      "description": "같은 상품이 두 번 결제된 문제",
+      "context": "한 번의 구매만 의도했는데 같은 상품이 2번 결제되었습니다. 하나는 환불받고 싶습니다.",
+      "difficulty": "easy"
+    },
+    {
+      "id": "quality_complaint",
+      "name": "서비스 품질 불만",
+      "description": "이전 경험의 나쁜 서비스에 대한 컴플레인",
+      "context": "지난달에 고객 서비스가 형편없었던 경험이 있어서 다시는 이용하지 않겠다고 생각하고 있습니다. 이번에도 제대로 된 응대를 받고 싶습니다.",
+      "difficulty": "hard"
+    }
+  ]
+}

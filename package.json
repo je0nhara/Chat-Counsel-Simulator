@@ -1,0 +1,30 @@
+{
+  "name": "chat-counsel-simulator",
+  "version": "1.0.0",
+  "description": "채팅상담 면접 모의훈련 시뮬레이터 (웹 + 상담 평가서)",
+  "main": "server.js",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "web": "node server.js",
+    "cli": "node src/index.js"
+  },
+  "keywords": [
+    "chat",
+    "counseling",
+    "simulator",
+    "interview",
+    "ollama",
+    "local-llm"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "openai": "^4.28.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.19.2"
+  }
+}
