@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { MongoClient } from "mongodb";
+import pg from "pg";
 import {
   loadScenarios,
   loadPersonas,
@@ -22,29 +22,38 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== 평가서 저장소 =====
-// MONGODB_URI가 있으면 MongoDB(영구 저장), 없으면 로컬 파일에 폴백한다.
-let mongoCol = null;
-if (process.env.MONGODB_URI) {
+// DATABASE_URL이 있으면 Postgres(Neon 등, 영구 저장), 없으면 로컬 파일에 폴백한다.
+let pgPool = null;
+if (process.env.DATABASE_URL) {
   try {
-    const client = new MongoClient(process.env.MONGODB_URI);
-    await client.connect();
-    mongoCol = client.db("chat_counsel").collection("evaluations");
-    console.log("💾 평가 저장소: MongoDB (영구)");
+    pgPool = new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    });
+    await pgPool.query(
+      `create table if not exists evaluations (id text primary key, data jsonb not null, created_at timestamptz default now())`
+    );
+    console.log("💾 평가 저장소: Postgres (영구)");
   } catch (e) {
-    console.error(`⚠️ MongoDB 연결 실패, 로컬 파일로 폴백합니다: ${e.message}`);
+    console.error(`⚠️ Postgres 연결 실패, 로컬 파일로 폴백합니다: ${e.message}`);
+    pgPool = null;
   }
 }
 
 const EVAL_DIR = path.join(__dirname, "data", "evaluations");
-if (!mongoCol) {
+if (!pgPool) {
   fs.mkdirSync(EVAL_DIR, { recursive: true });
   console.log("💾 평가 저장소: 로컬 파일 (임시)");
 }
 
 // 저장(생성/갱신)
 async function storeRecord(record) {
-  if (mongoCol) {
-    await mongoCol.replaceOne({ _id: record.id }, { _id: record.id, ...record }, { upsert: true });
+  if (pgPool) {
+    await pgPool.query(
+      `insert into evaluations (id, data) values ($1, $2)
+       on conflict (id) do update set data = excluded.data`,
+      [record.id, JSON.stringify(record)]
+    );
   } else {
     fs.writeFileSync(
       path.join(EVAL_DIR, `${record.id}.json`),
@@ -55,9 +64,9 @@ async function storeRecord(record) {
 
 // 전체 레코드 로드
 async function loadAllRecords() {
-  if (mongoCol) {
-    const docs = await mongoCol.find().toArray();
-    return docs.map(({ _id, ...rest }) => rest);
+  if (pgPool) {
+    const { rows } = await pgPool.query("select data from evaluations");
+    return rows.map((r) => r.data);
   }
   return fs
     .readdirSync(EVAL_DIR)
@@ -67,11 +76,9 @@ async function loadAllRecords() {
 
 // 단건 로드 (없으면 null)
 async function loadRecord(id) {
-  if (mongoCol) {
-    const doc = await mongoCol.findOne({ _id: id });
-    if (!doc) return null;
-    const { _id, ...rest } = doc;
-    return rest;
+  if (pgPool) {
+    const { rows } = await pgPool.query("select data from evaluations where id = $1", [id]);
+    return rows[0] ? rows[0].data : null;
   }
   const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : null;
@@ -79,9 +86,9 @@ async function loadRecord(id) {
 
 // 삭제
 async function removeRecord(id) {
-  if (mongoCol) {
-    const r = await mongoCol.deleteOne({ _id: id });
-    return r.deletedCount > 0;
+  if (pgPool) {
+    const { rowCount } = await pgPool.query("delete from evaluations where id = $1", [id]);
+    return rowCount > 0;
   }
   const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
   if (!fs.existsSync(file)) return false;
