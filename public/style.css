@@ -563,6 +563,45 @@ body {
   color: var(--muted);
   font-weight: 500;
 }
+.transcript-wrap {
+  margin-bottom: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #fafbfc;
+}
+.transcript-wrap > summary {
+  cursor: pointer;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+  user-select: none;
+}
+.eval-transcript {
+  padding: 4px 14px 12px;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.t-line {
+  font-size: 13px;
+  line-height: 1.5;
+  padding: 5px 0;
+  border-top: 1px solid #eef0f3;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.t-line b {
+  display: inline-block;
+  min-width: 48px;
+  margin-right: 6px;
+}
+.t-line.agent b {
+  color: var(--primary);
+}
+.t-line.customer b {
+  color: #8a6d1a;
+}
+
 .eval-body {
   white-space: pre-wrap;
   word-break: break-word;

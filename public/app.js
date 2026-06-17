@@ -416,6 +416,26 @@ function showEvalModal(data) {
   if (data.score != null) html += `<span class="eval-score">${data.score}점</span>`;
   meta.innerHTML = html;
 
+  // 상담 내용(대화 로그) 표시
+  const tWrap = $("eval-transcript-wrap");
+  const tEl = $("eval-transcript");
+  tEl.innerHTML = "";
+  if (Array.isArray(data.transcript) && data.transcript.length) {
+    data.transcript.forEach((m) => {
+      const line = document.createElement("div");
+      line.className = "t-line " + (m.speaker === "상담사" ? "agent" : "customer");
+      const who = document.createElement("b");
+      who.textContent = m.speaker;
+      line.appendChild(who);
+      line.appendChild(document.createTextNode(m.content));
+      tEl.appendChild(line);
+    });
+    tWrap.style.display = "";
+    tWrap.open = false;
+  } else {
+    tWrap.style.display = "none";
+  }
+
   body.className = "eval-body";
   body.textContent = data.evaluation;
 

@@ -3,6 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { createClient } from "@supabase/supabase-js";
 import {
   loadScenarios,
   loadPersonas,
@@ -20,9 +21,74 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// 평가서 저장 디렉토리
+// ===== 평가서 저장소 =====
+// SUPABASE_URL + SUPABASE_KEY가 있으면 Supabase(영구 저장), 없으면 로컬 파일에 폴백한다.
+const TABLE = "evaluations";
+const supabase =
+  process.env.SUPABASE_URL && process.env.SUPABASE_KEY
+    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
+    : null;
+
 const EVAL_DIR = path.join(__dirname, "data", "evaluations");
-fs.mkdirSync(EVAL_DIR, { recursive: true });
+if (!supabase) fs.mkdirSync(EVAL_DIR, { recursive: true });
+
+console.log(`💾 평가 저장소: ${supabase ? "Supabase (영구)" : "로컬 파일 (임시)"}`);
+
+// 저장(생성/갱신)
+async function storeRecord(record) {
+  if (supabase) {
+    const { error } = await supabase
+      .from(TABLE)
+      .upsert({ id: record.id, data: record });
+    if (error) throw new Error(`Supabase 저장 오류: ${error.message}`);
+  } else {
+    fs.writeFileSync(
+      path.join(EVAL_DIR, `${record.id}.json`),
+      JSON.stringify(record, null, 2)
+    );
+  }
+}
+
+// 전체 레코드 로드
+async function loadAllRecords() {
+  if (supabase) {
+    const { data, error } = await supabase.from(TABLE).select("data");
+    if (error) throw new Error(`Supabase 조회 오류: ${error.message}`);
+    return (data || []).map((r) => r.data);
+  }
+  return fs
+    .readdirSync(EVAL_DIR)
+    .filter((f) => f.endsWith(".json"))
+    .map((f) => JSON.parse(fs.readFileSync(path.join(EVAL_DIR, f), "utf-8")));
+}
+
+// 단건 로드 (없으면 null)
+async function loadRecord(id) {
+  if (supabase) {
+    const { data, error } = await supabase
+      .from(TABLE)
+      .select("data")
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(`Supabase 조회 오류: ${error.message}`);
+    return data ? data.data : null;
+  }
+  const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
+  return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : null;
+}
+
+// 삭제
+async function removeRecord(id) {
+  if (supabase) {
+    const { error } = await supabase.from(TABLE).delete().eq("id", id);
+    if (error) throw new Error(`Supabase 삭제 오류: ${error.message}`);
+    return true;
+  }
+  const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
+  if (!fs.existsSync(file)) return false;
+  fs.unlinkSync(file);
+  return true;
+}
 
 // 평가서 텍스트에서 종합 점수를 추출 (여러 형식 대응, 없으면 null)
 function parseScore(text) {
@@ -37,13 +103,6 @@ function parseScore(text) {
 // 상담사(지원자) 발화 수 = history에서 첫 유도 프롬프트를 제외한 user 메시지 수
 function countTurns(history) {
   return history.slice(1).filter((m) => m.role === "user").length;
-}
-
-function writeRecord(record) {
-  fs.writeFileSync(
-    path.join(EVAL_DIR, `${record.id}.json`),
-    JSON.stringify(record, null, 2)
-  );
 }
 
 app.use(express.json());
@@ -128,53 +187,53 @@ app.post("/api/evaluate", async (req, res) => {
   };
 
   // 1) '생성 중' 상태로 즉시 저장하고 바로 응답한다
-  writeRecord({ ...base, status: "generating", score: null, evaluation: "" });
+  try {
+    await storeRecord({ ...base, status: "generating", score: null, evaluation: "" });
+  } catch (e) {
+    return res.status(500).json({ error: e.message });
+  }
   res.json({ id, status: "generating" });
 
   // 2) 백그라운드로 평가서를 생성해 완료/오류 상태로 갱신한다 (응답은 이미 보냄)
   try {
     const evaluation = await generateEvaluation(scenario, persona, history);
-    writeRecord({ ...base, status: "done", score: parseScore(evaluation), evaluation });
+    await storeRecord({ ...base, status: "done", score: parseScore(evaluation), evaluation });
   } catch (error) {
-    writeRecord({
+    await storeRecord({
       ...base,
       status: "error",
       score: null,
       evaluation: `평가서 생성 중 오류가 발생했습니다.\n${error.message}`,
-    });
+    }).catch(() => {});
   }
 });
 
 // 평가서 삭제
-app.delete("/api/evaluations/:id", (req, res) => {
-  const file = path.join(EVAL_DIR, `${path.basename(req.params.id)}.json`);
-  if (!fs.existsSync(file)) {
-    return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+app.delete("/api/evaluations/:id", async (req, res) => {
+  try {
+    const ok = await removeRecord(req.params.id);
+    if (!ok) return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+    res.json({ ok: true });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  fs.unlinkSync(file);
-  res.json({ ok: true });
 });
 
 // 평가서 목록 (메타만, 최신순)
-app.get("/api/evaluations", (req, res) => {
+app.get("/api/evaluations", async (req, res) => {
   try {
-    const list = fs
-      .readdirSync(EVAL_DIR)
-      .filter((f) => f.endsWith(".json"))
-      .map((f) => {
-        const r = JSON.parse(fs.readFileSync(path.join(EVAL_DIR, f), "utf-8"));
-        return {
-          id: r.id,
-          createdAt: r.createdAt,
-          applicantName: r.applicantName || "이름 미입력",
-          scenarioName: r.scenarioName,
-          difficulty: r.difficulty,
-          personaName: r.personaName,
-          turns: r.turns,
-          score: r.score,
-          status: r.status || "done",
-        };
-      })
+    const list = (await loadAllRecords())
+      .map((r) => ({
+        id: r.id,
+        createdAt: r.createdAt,
+        applicantName: r.applicantName || "이름 미입력",
+        scenarioName: r.scenarioName,
+        difficulty: r.difficulty,
+        personaName: r.personaName,
+        turns: r.turns,
+        score: r.score,
+        status: r.status || "done",
+      }))
       .sort((a, b) => Number(b.id) - Number(a.id));
     res.json(list);
   } catch (error) {
@@ -183,22 +242,30 @@ app.get("/api/evaluations", (req, res) => {
 });
 
 // 평가서 상세
-app.get("/api/evaluations/:id", (req, res) => {
-  const file = path.join(EVAL_DIR, `${path.basename(req.params.id)}.json`);
-  if (!fs.existsSync(file)) {
-    return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+app.get("/api/evaluations/:id", async (req, res) => {
+  try {
+    const r = await loadRecord(req.params.id);
+    if (!r) return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+    res.json(r);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
-  res.json(JSON.parse(fs.readFileSync(file, "utf-8")));
 });
 
-// 평가서 텍스트 다운로드
-app.get("/api/evaluations/:id/download", (req, res) => {
-  const file = path.join(EVAL_DIR, `${path.basename(req.params.id)}.json`);
-  if (!fs.existsSync(file)) {
-    return res.status(404).send("평가서를 찾을 수 없습니다.");
+// 평가서 텍스트 다운로드 (상담 내용 포함)
+app.get("/api/evaluations/:id/download", async (req, res) => {
+  let r;
+  try {
+    r = await loadRecord(req.params.id);
+  } catch (e) {
+    return res.status(500).send(e.message);
   }
-  const r = JSON.parse(fs.readFileSync(file, "utf-8"));
+  if (!r) return res.status(404).send("평가서를 찾을 수 없습니다.");
+
   const diffLabel = { easy: "쉬움", medium: "보통", hard: "어려움" }[r.difficulty] || r.difficulty;
+  const convo = (r.transcript || [])
+    .map((m) => `[${m.speaker}] ${m.content}`)
+    .join("\n");
   const body =
     `채팅상담 모의상담 평가서\n` +
     `================================\n` +
@@ -208,12 +275,11 @@ app.get("/api/evaluations/:id/download", (req, res) => {
     `고객 유형: ${r.personaName}\n` +
     `대화 턴: ${r.turns}\n` +
     `================================\n\n` +
-    `${r.evaluation}\n`;
+    `■ 상담 내용\n${convo || "(없음)"}\n\n` +
+    `================================\n\n` +
+    `■ 평가서\n${r.evaluation}\n`;
   res.setHeader("Content-Type", "text/plain; charset=utf-8");
-  res.setHeader(
-    "Content-Disposition",
-    `attachment; filename="evaluation_${r.id}.txt"`
-  );
+  res.setHeader("Content-Disposition", `attachment; filename="evaluation_${r.id}.txt"`);
   res.send(body);
 });
 
