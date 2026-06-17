@@ -43,7 +43,7 @@ async function main() {
 
     // 페르소나 선택
     displayPersonas(personas);
-    const personaChoice = await askQuestion("고객 페르소나 번호 선택 (1-4): ");
+    const personaChoice = await askQuestion("고객 페르소나 번호 선택 (1-5): ");
     const personaIndex = parseInt(personaChoice) - 1;
 
     if (personaIndex < 0 || personaIndex >= personas.length) {
