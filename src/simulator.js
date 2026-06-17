@@ -72,7 +72,7 @@ export async function startConsultation(scenario, persona) {
 
   try {
     console.log("(고객 응답 생성 중...)\n");
-    const initialResponse = await generateCustomerResponse(
+    const { reply: initialResponse } = await generateCustomerResponse(
       persona.name,
       formatPersonaInfo(persona),
       scenario.context,
@@ -116,7 +116,7 @@ export async function startConsultation(scenario, persona) {
 
           try {
             console.log("(응답 생성 중...)\n");
-            const customerResponse = await generateCustomerResponse(
+            const { reply: customerResponse } = await generateCustomerResponse(
               persona.name,
               formatPersonaInfo(persona),
               scenario.context,

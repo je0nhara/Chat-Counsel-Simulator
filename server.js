@@ -83,14 +83,14 @@ app.post("/api/chat", async (req, res) => {
       return res.status(400).json({ error: "history는 배열이어야 합니다." });
     }
 
-    const reply = await generateCustomerResponse(
+    const { reply, ended } = await generateCustomerResponse(
       persona.name,
       formatPersonaInfo(persona),
       scenario.context,
       history
     );
 
-    res.json({ reply });
+    res.json({ reply, ended });
   } catch (error) {
     res.status(isConnError(error) ? 503 : 500).json({
       error: isConnError(error)

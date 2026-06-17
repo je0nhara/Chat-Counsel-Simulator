@@ -115,7 +115,8 @@ ${scenarioContext}
 6. 당신이 AI라거나 역할극 중이라는 메타 발언은 절대 하지 마세요. 항상 ${customerName} 본인으로서 말하세요.
 7. 메시지 맨 앞에 자신의 이름이나 "고객:", "${customerName}:" 같은 화자 표시를 붙이지 말고, 말풍선에 들어갈 실제 대사만 작성하세요.
 8. 답변 끝에 핵심 키워드, 제목, 해시태그, 요약 같은 꼬리말을 따로 붙이지 말고, 자연스러운 대화 문장으로 끝내세요.
-9. 문제가 어느 정도 해결되었고 상담사가 "더 궁금한 점 있으신가요?", "추가로 도와드릴 것 있을까요?"처럼 마무리하려 하면, 억지로 새로운 문제를 만들어내지 말고 고객도 감사 인사와 함께 상담을 자연스럽게 끝내세요(예: "아니요, 다 해결됐어요. 감사합니다!" / "네 덕분에 해결됐네요, 수고하세요"). 이때도 당신은 고객이므로, 상담사를 따라 "고객님"이라고 부르거나 상담사 같은 마무리 말투를 쓰지 마세요. 단 아직 문제가 해결되지 않았다면 마무리하지 말고 계속 요청하세요.`;
+9. 문제가 어느 정도 해결되었고 상담사가 "더 궁금한 점 있으신가요?", "추가로 도와드릴 것 있을까요?"처럼 마무리하려 하면, 억지로 새로운 문제를 만들어내지 말고 고객도 감사 인사와 함께 상담을 자연스럽게 끝내세요(예: "아니요, 다 해결됐어요. 감사합니다!" / "네 덕분에 해결됐네요, 수고하세요"). 이때도 당신은 고객이므로, 상담사를 따라 "고객님"이라고 부르거나 상담사 같은 마무리 말투를 쓰지 마세요. 단 아직 문제가 해결되지 않았다면 마무리하지 말고 계속 요청하세요.
+10. 문제가 해결되어 작별 인사까지 마치고 더 이상 묻거나 요청할 것이 없어 상담을 완전히 끝낼 때에만, 그 마지막 메시지의 맨 끝에 정확히 [상담종료] 라고 덧붙이세요. 아직 궁금하거나 요청할 것이 남아 있으면 절대 붙이지 마세요. (이 표시는 시스템이 상담 종료를 인식하는 신호입니다.)`;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -124,6 +125,7 @@ ${scenarioContext}
 
   try {
     let reply = "";
+    let ended = false;
     // 영어 문장이 섞여 나오면 한 번 재생성한다 (exaone이 간헐적으로 영어를 섞는 것을 보정)
     for (let attempt = 0; attempt < 2; attempt++) {
       const response = await client.chat.completions.create({
@@ -135,11 +137,13 @@ ${scenarioContext}
         presence_penalty: 0.3,
       });
       const raw = response.choices[0].message.content || "";
-      reply = sanitize(raw, customerName);
+      // 고객이 상담을 끝내는 신호 [상담종료] 감지 후 제거
+      ended = /\[\s*상담\s*종료\s*\]/.test(raw);
+      reply = sanitize(raw.replace(/\[\s*상담\s*종료\s*\]/g, ""), customerName);
       // 원본에 영어 문장(2단어 이상)이 있으면 재생성, 1단어 잔여는 sanitize가 이미 제거
       if (!hasEnglishChatter(raw)) break;
     }
-    return reply;
+    return { reply, ended };
   } catch (error) {
     console.error(isConnError(error) ? `❌ ${connErrorMessage()}` : `LLM 오류: ${error.message}`);
     throw error;

@@ -161,17 +161,50 @@ async function requestCustomerReply() {
     typing.remove();
     if (!res.ok) {
       addMessage("customer", `⚠️ ${data.error || "응답 생성에 실패했습니다."}`, "시스템");
+      setBusy(false);
+      chatText.focus();
       return;
     }
     addMessage("customer", data.reply, `고객(${selectedPersona.name})`);
     history.push({ role: "assistant", content: data.reply });
+
+    // 고객이 상담을 끝내는 발화([상담종료] 감지)면 자동 종료 플로우로 이어간다
+    if (data.ended) {
+      finishByCustomer();
+      return; // 입력창은 잠근 채로 둔다
+    }
+    setBusy(false);
+    chatText.focus();
   } catch (e) {
     typing.remove();
     addMessage("customer", "⚠️ 서버와 통신할 수 없습니다.", "시스템");
-  } finally {
     setBusy(false);
     chatText.focus();
   }
+}
+
+// 평가서 백그라운드 저장 (상담사 발화가 있을 때만)
+function saveEvaluation() {
+  if (turnCount === 0) return false;
+  fetch("/api/evaluate", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      applicantName,
+      scenarioId: selectedScenario.id,
+      personaId: selectedPersona.id,
+      history,
+    }),
+  }).catch(() => {});
+  return true;
+}
+
+// 고객이 먼저 상담을 종료한 경우: 시스템 메시지 → 입력창 잠금 유지 → 자동 종료/평가
+function finishByCustomer() {
+  setBusy(true); // 입력창 잠금 유지
+  addSystemNote("🔔 고객님이 상담을 종료하였습니다.");
+  saveEvaluation();
+  setTimeout(() => showEnded(), 1600);
 }
 
 // ===== UI 헬퍼 =====
@@ -224,18 +257,7 @@ endBtn.onclick = () => {
     showEnded("상담 내용이 없어 평가서는 생성되지 않았습니다.");
     return;
   }
-  // 평가서를 백그라운드로 생성·저장 (지원자에게는 보여주지 않음)
-  fetch("/api/evaluate", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      applicantName,
-      scenarioId: selectedScenario.id,
-      personaId: selectedPersona.id,
-      history,
-    }),
-  }).catch(() => {});
-
+  saveEvaluation(); // 평가서 백그라운드 저장 (지원자에게는 보여주지 않음)
   showEnded();
 };
 
@@ -411,6 +433,7 @@ $("eval-download").onclick = () => {
 // ===== 화면 전환 =====
 function goToSetup() {
   stopPolling();
+  setBusy(false); // 입력창 잠금 해제 (자동 종료 후 대비)
   gateModal.classList.add("hidden");
   endedModal.classList.add("hidden");
   summaryModal.classList.add("hidden");
