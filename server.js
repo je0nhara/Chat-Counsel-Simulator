@@ -3,7 +3,7 @@ import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import dotenv from "dotenv";
-import { createClient } from "@supabase/supabase-js";
+import { MongoClient } from "mongodb";
 import {
   loadScenarios,
   loadPersonas,
@@ -22,25 +22,29 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 // ===== 평가서 저장소 =====
-// SUPABASE_URL + SUPABASE_KEY가 있으면 Supabase(영구 저장), 없으면 로컬 파일에 폴백한다.
-const TABLE = "evaluations";
-const supabase =
-  process.env.SUPABASE_URL && process.env.SUPABASE_KEY
-    ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_KEY)
-    : null;
+// MONGODB_URI가 있으면 MongoDB(영구 저장), 없으면 로컬 파일에 폴백한다.
+let mongoCol = null;
+if (process.env.MONGODB_URI) {
+  try {
+    const client = new MongoClient(process.env.MONGODB_URI);
+    await client.connect();
+    mongoCol = client.db("chat_counsel").collection("evaluations");
+    console.log("💾 평가 저장소: MongoDB (영구)");
+  } catch (e) {
+    console.error(`⚠️ MongoDB 연결 실패, 로컬 파일로 폴백합니다: ${e.message}`);
+  }
+}
 
 const EVAL_DIR = path.join(__dirname, "data", "evaluations");
-if (!supabase) fs.mkdirSync(EVAL_DIR, { recursive: true });
-
-console.log(`💾 평가 저장소: ${supabase ? "Supabase (영구)" : "로컬 파일 (임시)"}`);
+if (!mongoCol) {
+  fs.mkdirSync(EVAL_DIR, { recursive: true });
+  console.log("💾 평가 저장소: 로컬 파일 (임시)");
+}
 
 // 저장(생성/갱신)
 async function storeRecord(record) {
-  if (supabase) {
-    const { error } = await supabase
-      .from(TABLE)
-      .upsert({ id: record.id, data: record });
-    if (error) throw new Error(`Supabase 저장 오류: ${error.message}`);
+  if (mongoCol) {
+    await mongoCol.replaceOne({ _id: record.id }, { _id: record.id, ...record }, { upsert: true });
   } else {
     fs.writeFileSync(
       path.join(EVAL_DIR, `${record.id}.json`),
@@ -51,10 +55,9 @@ async function storeRecord(record) {
 
 // 전체 레코드 로드
 async function loadAllRecords() {
-  if (supabase) {
-    const { data, error } = await supabase.from(TABLE).select("data");
-    if (error) throw new Error(`Supabase 조회 오류: ${error.message}`);
-    return (data || []).map((r) => r.data);
+  if (mongoCol) {
+    const docs = await mongoCol.find().toArray();
+    return docs.map(({ _id, ...rest }) => rest);
   }
   return fs
     .readdirSync(EVAL_DIR)
@@ -64,14 +67,11 @@ async function loadAllRecords() {
 
 // 단건 로드 (없으면 null)
 async function loadRecord(id) {
-  if (supabase) {
-    const { data, error } = await supabase
-      .from(TABLE)
-      .select("data")
-      .eq("id", id)
-      .maybeSingle();
-    if (error) throw new Error(`Supabase 조회 오류: ${error.message}`);
-    return data ? data.data : null;
+  if (mongoCol) {
+    const doc = await mongoCol.findOne({ _id: id });
+    if (!doc) return null;
+    const { _id, ...rest } = doc;
+    return rest;
   }
   const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
   return fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, "utf-8")) : null;
@@ -79,10 +79,9 @@ async function loadRecord(id) {
 
 // 삭제
 async function removeRecord(id) {
-  if (supabase) {
-    const { error } = await supabase.from(TABLE).delete().eq("id", id);
-    if (error) throw new Error(`Supabase 삭제 오류: ${error.message}`);
-    return true;
+  if (mongoCol) {
+    const r = await mongoCol.deleteOne({ _id: id });
+    return r.deletedCount > 0;
   }
   const file = path.join(EVAL_DIR, `${path.basename(id)}.json`);
   if (!fs.existsSync(file)) return false;
