@@ -12,22 +12,28 @@
       <section id="setup" class="screen">
         <header class="setup-header">
           <h1>📞 채팅상담 모의상담</h1>
-          <p>시나리오와 고객을 골라 상담을 연습해보세요.</p>
+          <p>지원자 이름을 입력하고 상담을 시작하세요.</p>
         </header>
+
+        <div class="name-field">
+          <label for="applicant-name">지원자 이름</label>
+          <input id="applicant-name" type="text" placeholder="이름을 입력하세요" maxlength="20" autocomplete="off" />
+        </div>
 
         <div class="setup-body">
           <div class="setup-col">
-            <h2>1. 시나리오 선택</h2>
-            <div id="scenario-list" class="card-list"></div>
+            <h2>나올 수 있는 상황</h2>
+            <div id="scenario-intro" class="intro-list"></div>
           </div>
           <div class="setup-col">
-            <h2>2. 고객 페르소나 선택</h2>
-            <div id="persona-list" class="card-list"></div>
+            <h2>고객 성향</h2>
+            <div id="persona-intro" class="intro-list"></div>
           </div>
         </div>
 
-        <button id="start-btn" class="primary-btn" disabled>상담 시작하기</button>
-        <button id="open-records" class="link-btn">📋 지난 평가 기록 보기</button>
+        <p class="random-note">🎲 <b>상담 시작하기</b>를 누르면 위 상황과 고객 중 <b>하나씩 무작위로</b> 선택되어 상담이 시작됩니다.</p>
+        <button id="start-btn" class="primary-btn">상담 시작하기</button>
+        <button id="open-records" class="link-btn">📋 평가 기록 보기 (면접관용)</button>
       </section>
 
       <!-- 평가 기록 화면 -->
@@ -43,13 +49,18 @@
       <!-- 2. 채팅 화면 -->
       <section id="chat" class="screen hidden">
         <header class="chat-header">
-          <button id="back-btn" class="ghost-btn">← 시나리오 선택</button>
+          <button id="back-btn" class="ghost-btn">← 나가기</button>
           <div class="chat-header-info">
             <div id="chat-title" class="chat-title"></div>
             <div id="chat-sub" class="chat-sub"></div>
           </div>
           <button id="end-btn" class="ghost-btn">상담 종료</button>
         </header>
+
+        <details id="process-guide" class="process-guide" open>
+          <summary>📄 이 업무의 보통 처리 프로세스 (참고용)</summary>
+          <div id="process-text" class="process-text"></div>
+        </details>
 
         <div id="messages" class="messages"></div>
 
@@ -64,7 +75,16 @@
         </form>
       </section>
 
-      <!-- 3. 상담 평가서 모달 -->
+      <!-- 상담 종료 안내 모달 (지원자에게는 평가 결과를 보여주지 않음) -->
+      <div id="ended" class="modal hidden">
+        <div class="modal-box">
+          <h2>상담이 종료되었습니다</h2>
+          <p id="ended-text">수고하셨습니다.<br>평가 결과는 면접관이 확인합니다.</p>
+          <button id="ended-home" class="primary-btn">처음으로</button>
+        </div>
+      </div>
+
+      <!-- 평가서 모달 (면접관 — 기록 페이지에서 열람) -->
       <div id="summary" class="modal hidden">
         <div class="modal-box eval-box">
           <h2>📊 상담 평가서</h2>

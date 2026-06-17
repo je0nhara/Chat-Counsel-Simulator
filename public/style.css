@@ -54,11 +54,94 @@ body {
   color: var(--muted);
 }
 
+.name-field {
+  padding: 4px 28px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.name-field label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+}
+.name-field input {
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 13px 15px;
+  font-size: 15px;
+  outline: none;
+}
+.name-field input:focus {
+  border-color: var(--primary);
+}
+
 .setup-body {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 20px;
-  padding: 24px 28px;
+  padding: 20px 28px 8px;
+}
+
+/* 시작 화면 소개 목록 (선택 아님, 안내용) */
+.intro-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.intro-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  background: #fafbfc;
+}
+.intro-item .it-name {
+  font-weight: 700;
+  font-size: 14px;
+}
+.intro-item .it-desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  margin-top: 3px;
+  line-height: 1.45;
+}
+.random-note {
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--muted);
+  margin: 6px 28px 2px;
+  line-height: 1.6;
+}
+
+/* 상담 화면 프로세스 가이드 */
+.process-guide {
+  margin: 0;
+  border-bottom: 1px solid var(--border);
+  background: #fffdf3;
+}
+.process-guide > summary {
+  cursor: pointer;
+  padding: 12px 22px;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #8a6d1a;
+  list-style: none;
+  user-select: none;
+}
+.process-guide > summary::-webkit-details-marker {
+  display: none;
+}
+.process-guide > summary::before {
+  content: "▸ ";
+}
+.process-guide[open] > summary::before {
+  content: "▾ ";
+}
+.process-text {
+  padding: 0 22px 14px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: #5a4a1a;
 }
 .setup-col h2 {
   font-size: 15px;

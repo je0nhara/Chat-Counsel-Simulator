@@ -92,7 +92,7 @@ app.post("/api/chat", async (req, res) => {
 // 진행한 상담을 평가해 평가서 생성 + 저장
 // body: { scenarioId, personaId, history }
 app.post("/api/evaluate", async (req, res) => {
-  const { scenarioId, personaId, history } = req.body;
+  const { scenarioId, personaId, history, applicantName } = req.body;
 
   try {
     const scenario = loadScenarios().find((s) => s.id === scenarioId);
@@ -109,6 +109,7 @@ app.post("/api/evaluate", async (req, res) => {
     const record = {
       id,
       createdAt: new Date().toISOString(),
+      applicantName: (applicantName || "").trim() || "이름 미입력",
       scenarioId,
       scenarioName: scenario.name,
       difficulty: scenario.difficulty,
@@ -151,6 +152,7 @@ app.get("/api/evaluations", (req, res) => {
         return {
           id: r.id,
           createdAt: r.createdAt,
+          applicantName: r.applicantName || "이름 미입력",
           scenarioName: r.scenarioName,
           difficulty: r.difficulty,
           personaName: r.personaName,
@@ -185,6 +187,7 @@ app.get("/api/evaluations/:id/download", (req, res) => {
   const body =
     `채팅상담 모의상담 평가서\n` +
     `================================\n` +
+    `지원자: ${r.applicantName || "이름 미입력"}\n` +
     `작성일: ${new Date(r.createdAt).toLocaleString("ko-KR")}\n` +
     `시나리오: ${r.scenarioName} (난이도: ${diffLabel})\n` +
     `고객 유형: ${r.personaName}\n` +
