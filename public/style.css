@@ -300,6 +300,60 @@ body {
   color: var(--muted);
   padding: 40px 12px;
 }
+.record-del {
+  flex-shrink: 0;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 7px 10px;
+  cursor: pointer;
+  font-size: 13px;
+}
+.record-del:hover {
+  border-color: #d6453d;
+  color: #d6453d;
+}
+.record-item.generating {
+  cursor: default;
+  opacity: 0.85;
+}
+.record-item.generating:hover {
+  border-color: var(--border);
+  background: #fff;
+}
+.record-status {
+  min-width: 56px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--muted);
+  line-height: 1.4;
+}
+.record-status.err {
+  color: #d6453d;
+}
+
+/* 비밀번호 게이트 */
+#gate .modal-box input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 13px 15px;
+  font-size: 16px;
+  text-align: center;
+  letter-spacing: 4px;
+  outline: none;
+  margin-bottom: 6px;
+}
+#gate .modal-box input:focus {
+  border-color: var(--primary);
+}
+.gate-error {
+  color: #d6453d;
+  font-size: 13px;
+  margin: 0 0 10px;
+}
 
 /* ===== 채팅 화면 ===== */
 #chat {

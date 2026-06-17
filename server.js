@@ -35,6 +35,13 @@ function countTurns(history) {
   return history.slice(1).filter((m) => m.role === "user").length;
 }
 
+function writeRecord(record) {
+  fs.writeFileSync(
+    path.join(EVAL_DIR, `${record.id}.json`),
+    JSON.stringify(record, null, 2)
+  );
+}
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -94,51 +101,54 @@ app.post("/api/chat", async (req, res) => {
 app.post("/api/evaluate", async (req, res) => {
   const { scenarioId, personaId, history, applicantName } = req.body;
 
+  const scenario = loadScenarios().find((s) => s.id === scenarioId);
+  const persona = loadPersonas().find((p) => p.id === personaId);
+  if (!scenario || !persona || !Array.isArray(history)) {
+    return res.status(400).json({ error: "잘못된 요청입니다." });
+  }
+
+  const id = `${Date.now()}`;
+  const base = {
+    id,
+    createdAt: new Date().toISOString(),
+    applicantName: (applicantName || "").trim() || "이름 미입력",
+    scenarioId,
+    scenarioName: scenario.name,
+    difficulty: scenario.difficulty,
+    personaName: persona.name,
+    turns: countTurns(history),
+    transcript: history.slice(1).map((m) => ({
+      speaker: m.role === "assistant" ? "고객" : "상담사",
+      content: m.content,
+    })),
+  };
+
+  // 1) '생성 중' 상태로 즉시 저장하고 바로 응답한다
+  writeRecord({ ...base, status: "generating", score: null, evaluation: "" });
+  res.json({ id, status: "generating" });
+
+  // 2) 백그라운드로 평가서를 생성해 완료/오류 상태로 갱신한다 (응답은 이미 보냄)
   try {
-    const scenario = loadScenarios().find((s) => s.id === scenarioId);
-    const persona = loadPersonas().find((p) => p.id === personaId);
-
-    if (!scenario || !persona || !Array.isArray(history)) {
-      return res.status(400).json({ error: "잘못된 요청입니다." });
-    }
-
     const evaluation = await generateEvaluation(scenario, persona, history);
-
-    // 평가서 저장
-    const id = `${Date.now()}`;
-    const record = {
-      id,
-      createdAt: new Date().toISOString(),
-      applicantName: (applicantName || "").trim() || "이름 미입력",
-      scenarioId,
-      scenarioName: scenario.name,
-      difficulty: scenario.difficulty,
-      personaName: persona.name,
-      turns: countTurns(history),
-      score: parseScore(evaluation),
-      evaluation,
-      // 상세 열람용 대화록 (첫 유도 프롬프트 제외)
-      transcript: history.slice(1).map((m) => ({
-        speaker: m.role === "assistant" ? "고객" : "상담사",
-        content: m.content,
-      })),
-    };
-    fs.writeFileSync(path.join(EVAL_DIR, `${id}.json`), JSON.stringify(record, null, 2));
-
-    res.json({
-      id,
-      evaluation,
-      difficulty: scenario.difficulty,
-      scenarioName: scenario.name,
-      score: record.score,
-    });
+    writeRecord({ ...base, status: "done", score: parseScore(evaluation), evaluation });
   } catch (error) {
-    res.status(isConnError(error) ? 503 : 500).json({
-      error: isConnError(error)
-        ? "LLM 서버에 연결할 수 없습니다. 키 또는 Ollama 실행 상태를 확인하세요."
-        : error.message,
+    writeRecord({
+      ...base,
+      status: "error",
+      score: null,
+      evaluation: `평가서 생성 중 오류가 발생했습니다.\n${error.message}`,
     });
   }
+});
+
+// 평가서 삭제
+app.delete("/api/evaluations/:id", (req, res) => {
+  const file = path.join(EVAL_DIR, `${path.basename(req.params.id)}.json`);
+  if (!fs.existsSync(file)) {
+    return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+  }
+  fs.unlinkSync(file);
+  res.json({ ok: true });
 });
 
 // 평가서 목록 (메타만, 최신순)
@@ -158,6 +168,7 @@ app.get("/api/evaluations", (req, res) => {
           personaName: r.personaName,
           turns: r.turns,
           score: r.score,
+          status: r.status || "done",
         };
       })
       .sort((a, b) => Number(b.id) - Number(a.id));

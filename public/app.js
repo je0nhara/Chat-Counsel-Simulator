@@ -34,6 +34,10 @@ const sendBtn = $("send-btn");
 const endBtn = $("end-btn");
 const endedModal = $("ended");
 const summaryModal = $("summary");
+const gateModal = $("gate");
+
+const RECORDS_PASSWORD = "2187";
+let recordsPollTimer = null;
 
 const DIFFICULTY = {
   easy: { label: "쉬움", cls: "easy" },
@@ -250,37 +254,117 @@ $("back-btn").onclick = () => {
   goToSetup();
 };
 
-// ===== 평가 기록 (면접관용) =====
-$("open-records").onclick = showRecords;
+// ===== 평가 기록 (면접관용, 비밀번호 게이트) =====
+$("open-records").onclick = openGate;
 $("records-back").onclick = goToSetup;
+$("gate-cancel").onclick = () => gateModal.classList.add("hidden");
+$("gate-ok").onclick = tryGate;
+$("gate-input").addEventListener("keydown", (e) => {
+  if (e.key === "Enter") tryGate();
+});
 
-async function showRecords() {
+function openGate() {
+  $("gate-input").value = "";
+  $("gate-error").classList.add("hidden");
+  gateModal.classList.remove("hidden");
+  $("gate-input").focus();
+}
+function tryGate() {
+  if ($("gate-input").value.trim() === RECORDS_PASSWORD) {
+    gateModal.classList.add("hidden");
+    showRecords();
+  } else {
+    $("gate-error").classList.remove("hidden");
+    $("gate-input").value = "";
+    $("gate-input").focus();
+  }
+}
+
+function showRecords() {
   setupScreen.classList.add("hidden");
   recordsScreen.classList.remove("hidden");
+  $("records-list").innerHTML = "<p class='records-empty'>불러오는 중…</p>";
+  loadRecords();
+}
+
+const delBtnHtml = '<button class="record-del" title="삭제">🗑</button>';
+
+async function loadRecords() {
   const list = $("records-list");
-  list.innerHTML = "<p class='records-empty'>불러오는 중…</p>";
   try {
     const records = await (await fetch("/api/evaluations")).json();
     if (!records.length) {
       list.innerHTML = "<p class='records-empty'>아직 저장된 평가가 없어요.<br>지원자가 상담을 마치면 여기에 쌓입니다.</p>";
+      stopPolling();
       return;
     }
     list.innerHTML = "";
+    let anyGenerating = false;
     records.forEach((r) => {
       const d = DIFFICULTY[r.difficulty] || { label: r.difficulty, cls: "" };
+      const status = r.status || "done";
       const item = document.createElement("div");
-      item.className = "record-item";
-      item.innerHTML =
-        `<div class="record-score">${r.score ?? "-"}<small>/100</small></div>` +
-        `<div class="record-info">` +
-        `<div class="record-name">${r.applicantName || "이름 미입력"} <span class="badge ${d.cls}">${d.label}</span></div>` +
-        `<div class="record-sub">${r.scenarioName} · ${r.personaName} · ${new Date(r.createdAt).toLocaleString("ko-KR")}</div>` +
-        `</div>`;
-      item.onclick = () => openRecordDetail(r.id);
+      const sub = `${r.scenarioName} · ${r.personaName} · ${new Date(r.createdAt).toLocaleString("ko-KR")}`;
+
+      if (status === "generating") {
+        anyGenerating = true;
+        item.className = "record-item generating";
+        item.innerHTML =
+          `<div class="record-status">⏳<br>생성 중</div>` +
+          `<div class="record-info"><div class="record-name">${r.applicantName}</div>` +
+          `<div class="record-sub">${r.scenarioName} · ${r.personaName} · 평가서를 작성하고 있어요…</div></div>` +
+          delBtnHtml;
+      } else if (status === "error") {
+        item.className = "record-item";
+        item.innerHTML =
+          `<div class="record-status err">⚠️<br>실패</div>` +
+          `<div class="record-info"><div class="record-name">${r.applicantName}</div>` +
+          `<div class="record-sub">${sub}</div></div>` +
+          delBtnHtml;
+        item.querySelector(".record-info").onclick = () => openRecordDetail(r.id);
+      } else {
+        item.className = "record-item";
+        item.innerHTML =
+          `<div class="record-score">${r.score ?? "-"}<small>/100</small></div>` +
+          `<div class="record-info"><div class="record-name">${r.applicantName} <span class="badge ${d.cls}">${d.label}</span></div>` +
+          `<div class="record-sub">${sub}</div></div>` +
+          delBtnHtml;
+        item.querySelector(".record-info").onclick = () => openRecordDetail(r.id);
+      }
+
+      const del = item.querySelector(".record-del");
+      if (del)
+        del.onclick = (e) => {
+          e.stopPropagation();
+          deleteRecord(r.id);
+        };
       list.appendChild(item);
     });
+    if (anyGenerating) startPolling();
+    else stopPolling();
   } catch (e) {
     list.innerHTML = "<p class='records-empty'>목록을 불러오지 못했어요.</p>";
+    stopPolling();
+  }
+}
+
+function startPolling() {
+  if (!recordsPollTimer) recordsPollTimer = setInterval(loadRecords, 3000);
+}
+function stopPolling() {
+  if (recordsPollTimer) {
+    clearInterval(recordsPollTimer);
+    recordsPollTimer = null;
+  }
+}
+
+async function deleteRecord(id) {
+  if (!confirm("이 평가서를 삭제할까요? 되돌릴 수 없습니다.")) return;
+  try {
+    await fetch(`/api/evaluations/${id}`, { method: "DELETE" });
+    loadRecords();
+  } catch (e) {
+    alert("삭제하지 못했습니다.");
   }
 }
 
@@ -326,6 +410,8 @@ $("eval-download").onclick = () => {
 
 // ===== 화면 전환 =====
 function goToSetup() {
+  stopPolling();
+  gateModal.classList.add("hidden");
   endedModal.classList.add("hidden");
   summaryModal.classList.add("hidden");
   chatScreen.classList.add("hidden");

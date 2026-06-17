@@ -75,6 +75,20 @@
         </form>
       </section>
 
+      <!-- 평가 기록 비밀번호 게이트 (면접관용) -->
+      <div id="gate" class="modal hidden">
+        <div class="modal-box">
+          <h2>🔒 면접관 확인</h2>
+          <p>평가 기록을 보려면 비밀번호를 입력하세요.</p>
+          <input id="gate-input" type="password" inputmode="numeric" placeholder="비밀번호" autocomplete="off" />
+          <p id="gate-error" class="gate-error hidden">비밀번호가 올바르지 않습니다.</p>
+          <div class="eval-actions">
+            <button id="gate-cancel" class="ghost-btn">취소</button>
+            <button id="gate-ok" class="primary-btn">확인</button>
+          </div>
+        </div>
+      </div>
+
       <!-- 상담 종료 안내 모달 (지원자에게는 평가 결과를 보여주지 않음) -->
       <div id="ended" class="modal hidden">
         <div class="modal-box">
