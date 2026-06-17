@@ -24,9 +24,13 @@ const PORT = process.env.PORT || 3000;
 const EVAL_DIR = path.join(__dirname, "data", "evaluations");
 fs.mkdirSync(EVAL_DIR, { recursive: true });
 
-// 평가서 텍스트에서 "종합 점수: NN / 100"을 추출 (없으면 null)
+// 평가서 텍스트에서 종합 점수를 추출 (여러 형식 대응, 없으면 null)
 function parseScore(text) {
-  const m = (text || "").match(/종합\s*점수\s*[:：]?\s*(\d{1,3})/);
+  text = text || "";
+  const m =
+    text.match(/종합\s*점수\s*[:：]?\s*(\d{1,3})/) || // "종합 점수: 72"
+    text.match(/최종\s*등급[^\d]*?(\d{1,3})\s*점/) || // "[최종 등급]\n68점 —"
+    text.match(/(\d{1,3})\s*점\s*[—–\-]/); // "68점 —"
   return m ? Math.min(100, parseInt(m[1], 10)) : null;
 }
 
