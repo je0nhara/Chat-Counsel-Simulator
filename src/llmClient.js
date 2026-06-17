@@ -40,6 +40,21 @@ export function hasEnglishChatter(text) {
   return /[A-Za-z]+['’]?\s+[A-Za-z]+/.test(text || "");
 }
 
+// 고객 발화가 상담을 끝내는 작별/마무리인지 휴리스틱 판정
+// (모델이 [상담종료] 마커를 빠뜨리는 경우의 폴백)
+export function looksLikeClosing(text) {
+  const t = text || "";
+  const farewell =
+    /(다\s*해결|해결\s*됐|해결\s*되었|해결\s*됐네|잘\s*해결|덕분에|수고하세요|좋은\s*하루|그럼\s*이만|이만\s*(마치|줄)|마무리하|괜찮(아요|습니다)\.?$)/.test(
+      t
+    );
+  const stillAsking =
+    /[?？]|언제|어떻게|얼마|몇\s|될까요|되나요|있을까요|할까요|확인해|확인\s*좀|알려\s*주|가능할까|부탁|해\s*주세요/.test(
+      t
+    );
+  return farewell && !stillAsking;
+}
+
 // 모델 응답을 평범한 채팅 텍스트로 정리:
 //  - 마크다운 서식(**, *, #) 제거
 //  - 맨 앞에 붙는 화자 라벨("고객:", "고객(김화남):", "김화남:") 제거
@@ -143,6 +158,8 @@ ${scenarioContext}
       // 원본에 영어 문장(2단어 이상)이 있으면 재생성, 1단어 잔여는 sanitize가 이미 제거
       if (!hasEnglishChatter(raw)) break;
     }
+    // 마커를 놓친 경우라도 작별 발화면 종료로 처리 (폴백)
+    if (!ended && looksLikeClosing(reply)) ended = true;
     return { reply, ended };
   } catch (error) {
     console.error(isConnError(error) ? `❌ ${connErrorMessage()}` : `LLM 오류: ${error.message}`);
