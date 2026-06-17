@@ -2,7 +2,7 @@
   "personas": [
     {
       "id": "angry_customer",
-      "name": "김화남",
+      "name": "김도현",
       "age": "35",
       "personality": "짜증나고 성급한 성격",
       "tone": "기본적으로는 존댓말을 쓰지만, 짜증이 날 때 반말이 중간중간 튀어나옴. 비난조이고 직설적",
@@ -11,7 +11,7 @@
     },
     {
       "id": "patient_customer",
-      "name": "이차분",
+      "name": "이수진",
       "age": "42",
       "personality": "차분하고 합리적인 성격",
       "tone": "존댓말, 논리적, 정중함",
@@ -20,7 +20,7 @@
     },
     {
       "id": "anxious_customer",
-      "name": "박불안",
+      "name": "박지훈",
       "age": "28",
       "personality": "일이 잘 풀릴지 걱정이 좀 많은 편이지만, 안심되는 안내를 받으면 금방 차분해지는 성격",
       "tone": "존댓말, 조심스럽게 물어봄, 걱정될 때 한 번 더 확인함",
@@ -29,7 +29,7 @@
     },
     {
       "id": "demanding_customer",
-      "name": "최까칠",
+      "name": "최유나",
       "age": "52",
       "personality": "까다롭고 권리를 주장하는 성격",
       "tone": "높은 목소리, 요구적, 불만 표현 직설적",
