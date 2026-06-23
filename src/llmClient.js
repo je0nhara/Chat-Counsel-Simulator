@@ -3,13 +3,17 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-// OPENAI_API_KEY가 있으면 OpenAI(gpt-4o-mini)를 사용하고,
-// 없으면 로컬 Ollama(OpenAI 호환 API)로 자동 폴백한다.
-// → 배포 시엔 OPENAI_API_KEY만 넣으면 OpenAI로 동작, 로컬 개발은 키 없이 Ollama로 가능.
-const USE_OPENAI = !!process.env.OPENAI_API_KEY;
+// LLM 백엔드 선택 (우선순위):
+//  1) LLM_BASE_URL + LLM_API_KEY  → 임의의 OpenAI 호환 제공자 (Gemini, Groq 등 무료 LLM)
+//  2) OPENAI_API_KEY              → OpenAI
+//  3) (없음)                       → 로컬 Ollama 폴백
+const USE_GENERIC = !!(process.env.LLM_BASE_URL && process.env.LLM_API_KEY);
+const USE_OPENAI = !USE_GENERIC && !!process.env.OPENAI_API_KEY;
 
 const client = new OpenAI(
-  USE_OPENAI
+  USE_GENERIC
+    ? { baseURL: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, maxRetries: 4 }
+    : USE_OPENAI
     ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 4 }
     : {
         baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
@@ -17,14 +21,16 @@ const client = new OpenAI(
       }
 );
 
-const MODEL = USE_OPENAI
+const MODEL = USE_GENERIC
+  ? process.env.LLM_MODEL || "gemini-2.0-flash"
+  : USE_OPENAI
   ? process.env.OPENAI_MODEL || "gpt-4o-mini"
   : process.env.OLLAMA_MODEL || "exaone3.5:7.8b";
 
 // 연결 오류 안내 메시지 (백엔드에 맞게)
 function connErrorMessage() {
-  return USE_OPENAI
-    ? "OpenAI API에 연결할 수 없습니다. OPENAI_API_KEY와 네트워크 상태를 확인하세요."
+  return USE_GENERIC || USE_OPENAI
+    ? "LLM API에 연결할 수 없습니다. API 키와 네트워크 상태를 확인하세요."
     : "Ollama 서버에 연결할 수 없습니다. 'ollama serve'로 서버를 실행했는지 확인하세요.";
 }
 
