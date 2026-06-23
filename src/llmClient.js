@@ -10,7 +10,7 @@ const USE_OPENAI = !!process.env.OPENAI_API_KEY;
 
 const client = new OpenAI(
   USE_OPENAI
-    ? { apiKey: process.env.OPENAI_API_KEY }
+    ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 4, timeout: 60000 }
     : {
         baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
         apiKey: "ollama", // Ollama는 키를 검사하지 않지만 SDK가 값을 요구함 (더미값)
@@ -240,25 +240,21 @@ export async function generateEvaluation(scenario, persona, conversationHistory)
     { role: "user", content: `다음 상담 내역을 평가해 주세요.\n\n${transcript}` },
   ];
   try {
-    // 스트리밍 + 재시도: 긴 평가서 생성 중 연결이 끊기는("Premature close") 문제를 보정
+    // 재시도: 긴 평가서 생성 중 연결이 끊기는("Premature close") 문제를 보정
     let raw = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const stream = await client.chat.completions.create({
+        const response = await client.chat.completions.create({
           model: MODEL,
           messages,
           temperature: 0.3,
-          max_tokens: 1800,
-          stream: true,
+          max_tokens: 1300,
         });
-        raw = "";
-        for await (const chunk of stream) {
-          raw += chunk.choices[0]?.delta?.content || "";
-        }
+        raw = response.choices[0].message.content || "";
         if (raw.trim()) break;
       } catch (e) {
         if (attempt === 2) throw e;
-        await new Promise((r) => setTimeout(r, 1500));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
     // 평가서는 마크다운 기호만 정리한다 (화자 라벨·꼬리표 로직은 적용하지 않음)
