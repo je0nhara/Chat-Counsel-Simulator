@@ -226,29 +226,34 @@ app.delete("/api/evaluations/:id", async (req, res) => {
 });
 
 // 저장된 상담 로그로 '현재 평가 기준'에 맞춰 재평가 (이전 결과는 prev*에 백업)
+// 백그라운드로 처리: 즉시 'generating'으로 응답하고, 완료 시 갱신한다 (요청 타임아웃 회피)
 app.post("/api/evaluations/:id/reeval", async (req, res) => {
+  const r = await loadRecord(req.params.id).catch(() => null);
+  if (!r) return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
+  if (!Array.isArray(r.transcript) || !r.transcript.length) {
+    return res.status(400).json({ error: "대화 로그가 없어 재평가할 수 없습니다." });
+  }
+  const scenario = loadScenarios().find((s) => s.id === r.scenarioId);
+  const persona = loadPersonas().find((p) => p.name === r.personaName); // 기존 기록엔 id가 없어 이름으로 조회
+  if (!scenario || !persona) {
+    return res.status(400).json({ error: "시나리오/페르소나를 찾을 수 없습니다." });
+  }
+
+  // 즉시 '생성 중' 표시 후 응답 (기존 evaluation은 유지)
+  await storeRecord({ ...r, status: "generating" });
+  res.json({ id: r.id, status: "generating" });
+
+  // 백그라운드 재평가
+  const conversationHistory = [
+    { role: "user", content: "(시뮬레이션 시작)" },
+    ...r.transcript.map((m) => ({
+      role: m.speaker === "고객" ? "assistant" : "user",
+      content: m.content,
+    })),
+  ];
   try {
-    const r = await loadRecord(req.params.id);
-    if (!r) return res.status(404).json({ error: "평가서를 찾을 수 없습니다." });
-    if (!Array.isArray(r.transcript) || !r.transcript.length) {
-      return res.status(400).json({ error: "대화 로그가 없어 재평가할 수 없습니다." });
-    }
-    const scenario = loadScenarios().find((s) => s.id === r.scenarioId);
-    // 기존 기록엔 personaId가 없을 수 있어 personaName으로 조회
-    const persona = loadPersonas().find((p) => p.name === r.personaName);
-    if (!scenario || !persona) {
-      return res.status(400).json({ error: "시나리오/페르소나를 찾을 수 없습니다." });
-    }
-    // transcript → conversationHistory 복원 (첫 항목은 유도 프롬프트 자리이므로 평가에서 제외됨)
-    const conversationHistory = [
-      { role: "user", content: "(시뮬레이션 시작)" },
-      ...r.transcript.map((m) => ({
-        role: m.speaker === "고객" ? "assistant" : "user",
-        content: m.content,
-      })),
-    ];
     const evaluation = await generateEvaluation(scenario, persona, conversationHistory);
-    const updated = {
+    await storeRecord({
       ...r,
       prevScore: r.score,
       prevEvaluation: r.evaluation,
@@ -256,11 +261,10 @@ app.post("/api/evaluations/:id/reeval", async (req, res) => {
       status: "done",
       score: parseScore(evaluation),
       evaluation,
-    };
-    await storeRecord(updated);
-    res.json({ id: r.id, score: updated.score, prevScore: r.score });
+    });
   } catch (error) {
-    res.status(isConnError(error) ? 503 : 500).json({ error: error.message });
+    // 실패 시 원래 평가/상태로 복구
+    await storeRecord({ ...r, status: "done" }).catch(() => {});
   }
 });
 
