@@ -12,9 +12,9 @@ const USE_OPENAI = !USE_GENERIC && !!process.env.OPENAI_API_KEY;
 
 const client = new OpenAI(
   USE_GENERIC
-    ? { baseURL: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, maxRetries: 4 }
+    ? { baseURL: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, maxRetries: 2 }
     : USE_OPENAI
-    ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 4 }
+    ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 2 }
     : {
         baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
         apiKey: "ollama", // Ollama는 키를 검사하지 않지만 SDK가 값을 요구함 (더미값)
