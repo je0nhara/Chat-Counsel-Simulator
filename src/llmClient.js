@@ -235,18 +235,34 @@ export async function generateEvaluation(scenario, persona, conversationHistory)
 [종합 의견]
 (2~3문장, SERVQUAL 차원 중 강한 차원과 보완점, 상담 종결의 자연스러움을 중심으로)`;
 
+  const messages = [
+    { role: "system", content: systemPrompt },
+    { role: "user", content: `다음 상담 내역을 평가해 주세요.\n\n${transcript}` },
+  ];
   try {
-    const response = await client.chat.completions.create({
-      model: MODEL,
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: `다음 상담 내역을 평가해 주세요.\n\n${transcript}` },
-      ],
-      temperature: 0.3,
-      max_tokens: 1800,
-    });
+    // 스트리밍 + 재시도: 긴 평가서 생성 중 연결이 끊기는("Premature close") 문제를 보정
+    let raw = "";
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const stream = await client.chat.completions.create({
+          model: MODEL,
+          messages,
+          temperature: 0.3,
+          max_tokens: 1800,
+          stream: true,
+        });
+        raw = "";
+        for await (const chunk of stream) {
+          raw += chunk.choices[0]?.delta?.content || "";
+        }
+        if (raw.trim()) break;
+      } catch (e) {
+        if (attempt === 2) throw e;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    }
     // 평가서는 마크다운 기호만 정리한다 (화자 라벨·꼬리표 로직은 적용하지 않음)
-    return (response.choices[0].message.content || "")
+    return raw
       .replace(/\*\*(.*?)\*\*/g, "$1")
       .replace(/[*#`]/g, "")
       .trim();
