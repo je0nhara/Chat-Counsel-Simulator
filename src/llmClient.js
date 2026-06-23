@@ -154,8 +154,6 @@ ${scenarioContext}
         messages,
         temperature: 0.8,
         max_tokens: 115,
-        frequency_penalty: 0.4,
-        presence_penalty: 0.3,
       });
       const raw = response.choices[0].message.content || "";
       // 고객이 상담을 끝내는 신호 [상담종료] 감지 후 제거
