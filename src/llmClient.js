@@ -1,7 +1,11 @@
 import OpenAI from "openai";
+import https from "https";
 import dotenv from "dotenv";
 
 dotenv.config();
+
+// keep-alive 연결 재사용 중 끊기는 "Premature close"를 피하려고 매 요청 새 연결을 쓴다
+const httpAgent = new https.Agent({ keepAlive: false });
 
 // LLM 백엔드 선택 (우선순위):
 //  1) LLM_BASE_URL + LLM_API_KEY  → 임의의 OpenAI 호환 제공자 (Gemini, Groq 등 무료 LLM)
@@ -12,9 +16,9 @@ const USE_OPENAI = !USE_GENERIC && !!process.env.OPENAI_API_KEY;
 
 const client = new OpenAI(
   USE_GENERIC
-    ? { baseURL: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, maxRetries: 2 }
+    ? { baseURL: process.env.LLM_BASE_URL, apiKey: process.env.LLM_API_KEY, maxRetries: 3, httpAgent }
     : USE_OPENAI
-    ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 2 }
+    ? { apiKey: process.env.OPENAI_API_KEY, maxRetries: 3, httpAgent }
     : {
         baseURL: process.env.OLLAMA_BASE_URL || "http://localhost:11434/v1",
         apiKey: "ollama", // Ollama는 키를 검사하지 않지만 SDK가 값을 요구함 (더미값)
