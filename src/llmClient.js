@@ -31,6 +31,15 @@ const MODEL = USE_GENERIC
   ? process.env.OPENAI_MODEL || "gpt-4o-mini"
   : process.env.OLLAMA_MODEL || "exaone3.5:7.8b";
 
+// 평가 전용 클라이언트: 정밀한 한국어 평가를 위해 OPENAI_API_KEY가 있으면 OpenAI를 사용하고
+// (상담 응답은 위 client = 무료 Groq 등을 그대로 사용), 없으면 상담용 client로 폴백한다.
+const evalClient = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY, maxRetries: 3, httpAgent })
+  : client;
+const EVAL_MODEL = process.env.OPENAI_API_KEY
+  ? process.env.OPENAI_MODEL || "gpt-4o-mini"
+  : MODEL;
+
 // 연결 오류 안내 메시지 (백엔드에 맞게)
 function connErrorMessage() {
   return USE_GENERIC || USE_OPENAI
@@ -254,8 +263,8 @@ export async function generateEvaluation(scenario, persona, conversationHistory)
     let raw = "";
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const response = await client.chat.completions.create({
-          model: MODEL,
+        const response = await evalClient.chat.completions.create({
+          model: EVAL_MODEL,
           messages,
           temperature: 0.3,
           max_tokens: 1300,
